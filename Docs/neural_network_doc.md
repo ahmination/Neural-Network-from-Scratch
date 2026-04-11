@@ -24,3 +24,20 @@ def relu(self, z):
         s = self.sigmoid(z)
         return s * (1 - s)
 ```
+
+
+```Python
+
+```
+
+```Python
+
+```
+
+```Python
+
+```
+
+```Python
+
+```

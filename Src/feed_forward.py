@@ -1,12 +1,8 @@
 import numpy as np
 import json
-#from typing import List, Tuple, Optional
-
 
 class Neuralnetwork:
-
     def __init__(self, layer_size, learning_rate, activation):
-
         self.layer_size = layer_size
         self.learning_rate = learning_rate
         self.activation = activation
@@ -73,24 +69,22 @@ class Neuralnetwork:
         for i in range(self.num_layers - 2):
             z = np.dot(activations[-1], self.weights[i]) + self.biases[i]
             z_values.append(z)
-            a = self.activate(z)
+            a = self.activate(z, derivative=False) 
             activations.append(a)
         
         z = np.dot(activations[-1], self.weights[-1]) + self.biases[-1]
         z_values.append(z)
-        a = self.softmax(z)
+        a = self.soft_max(z)  
         activations.append(a)
         
         return activations, z_values
     
     def backward(self, X, Y, activations, z_values):
-        
         m = X.shape[0]
-
         delta = activations[-1] - Y
 
-        for i in range(self.num_layers, -2, -1, -1):
 
+        for i in range(len(self.weights) - 1, -1, -1):
             dW = np.dot(activations[i].T, delta) / m
             db = np.sum(delta, axis=0, keepdims=True) / m
 
@@ -98,17 +92,70 @@ class Neuralnetwork:
             self.biases[i] -= self.learning_rate * db
 
             if i > 0:
-                delta = np.dot(delta, self.weights) * self.activate(z_values[i - 1], derivative=True)
+                delta = np.dot(delta, self.weights[i].T) * self.activate(z_values[i - 1], derivative=True)
 
 
+    def cross_entropy_loss(self, y_pred, y_true):
+        m = y_true.shape[0]
+        y_pred = np.clip(y_pred, 1e-10, 1 - 1e-10)
+        loss = -np.sum(y_true * np.log(y_pred)) / m
+        return loss
+    
+    def train(self, X_train, y_train, X_val, y_val, epochs, batch_size, verbose):
+        n_samples = X_train.shape[0]
+        
+        for epoch in range(epochs):
+            indices = np.random.permutation(n_samples)
+            X_train_shuffled = X_train[indices]
+            y_train_shuffled = y_train[indices]
+            
+            epoch_loss = 0
+            for i in range(0, n_samples, batch_size):
+                X_batch = X_train_shuffled[i:i + batch_size]
+                y_batch = y_train_shuffled[i:i + batch_size]
+                
+                activations, z_values = self.forward(X_batch)
+                self.backward(X_batch, y_batch, activations, z_values)
+                
+                batch_loss = self.cross_entropy_loss(activations[-1], y_batch)
+                epoch_loss += batch_loss
+            
+            epoch_loss /= (n_samples // batch_size)
+            self.history['loss'].append(epoch_loss)
+            
+            train_predictions = self.predict(X_train)
+            train_accuracy = np.mean(train_predictions == np.argmax(y_train, axis=1))
+            self.history['accuracy'].append(train_accuracy)
+            
+            if X_val is not None and y_val is not None:
+                val_activations, _ = self.forward(X_val)
+                val_loss = self.cross_entropy_loss(val_activations[-1], y_val)
+                val_predictions = self.predict(X_val)
+                val_accuracy = np.mean(val_predictions == np.argmax(y_val, axis=1))
+                
+                self.history['val_loss'].append(val_loss)
+                self.history['val_accuracy'].append(val_accuracy)
+                
+                if verbose:
+                    print(f"Epoch {epoch + 1}/{epochs} - "
+                          f"Loss: {epoch_loss:.4f} - Acc: {train_accuracy:.4f} - "
+                          f"Val Loss: {val_loss:.4f} - Val Acc: {val_accuracy:.4f}")
+            else:
+                if verbose:
+                    print(f"Epoch {epoch + 1}/{epochs} - "
+                          f"Loss: {epoch_loss:.4f} - Acc: {train_accuracy:.4f}")
+        
+        return self.history
 
-
-
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        activations, _ = self.forward(X)
+        return np.argmax(activations[-1], axis=1)
+    
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        activations, _ = self.forward(X)
+        return activations[-1]
 
     def save(self, filepath):
-        """Save model to JSON file"""
-    
-        # Convert numpy arrays to lists for JSON serialization
         def convert_arrays_to_lists(obj):
             if isinstance(obj, np.ndarray):
                 return obj.tolist()
@@ -119,7 +166,7 @@ class Neuralnetwork:
             return obj
 
         model_data = {
-            'layer_sizes': self.layer_sizes,
+            'layer_sizes': self.layer_size,
             'learning_rate': self.learning_rate,
             'activation': self.activation,
             'weights': convert_arrays_to_lists(self.weights),
@@ -133,16 +180,12 @@ class Neuralnetwork:
 
     @classmethod
     def load(cls, filepath):
-        """Load model from JSON file"""
-    
-        # Convert lists back to numpy arrays
-        def convert_lists_to_arrays(obj, is_weight=False):
+        def convert_lists_to_arrays(obj):
             if isinstance(obj, list):
-                # Check if this looks like a numeric array (not metadata)
                 if obj and isinstance(obj[0], (int, float, list)):
                     return np.array([convert_lists_to_arrays(item) for item in obj])
                 return [convert_lists_to_arrays(item) for item in obj]
-            return obj  # primitives pass through
+            return obj
 
         with open(filepath, 'r') as f:
             model_data = json.load(f)
@@ -153,7 +196,6 @@ class Neuralnetwork:
             model_data['activation']
         )
     
-        # Restore weights and biases as numpy arrays
         model.weights = [np.array(w) for w in model_data['weights']]
         model.biases = [np.array(b) for b in model_data['biases']]
         model.history = model_data['history']
@@ -162,7 +204,6 @@ class Neuralnetwork:
         return model
     
     def summary(self):
-        """Print model summary"""
         print("=" * 60)
         print("Neural Network Summary")
         print("=" * 60)
