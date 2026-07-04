@@ -26,9 +26,7 @@ In hopes of making this project, only a few exceptions shall be made:
 Currently, the project is going through some redesigns since some Factors didn't go as planned.
 In the testing phase, to check if building it was possible, but due to some difficulties,
 some base build redesigns will take place.
-The pipeline exists, but will take time to be made since a web view is also planned to be implemented.
 The project will stay true to itself where it will be built from scratch in python (only using  numpy).
-The frontend is planned to be built in HTML.
 
 **Note: This project has split in two(this one the neural network, and machine learning from scratch)**
 ```
